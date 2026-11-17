@@ -1,0 +1,10 @@
+{
+  "name": "@tinkerbench-studio/github-actions",
+  "private": true,
+  "description": "The GitHub Actions the tinkerbench-studio repositories share.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test"
+  }
+}

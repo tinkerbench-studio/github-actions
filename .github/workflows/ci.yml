@@ -1,0 +1,80 @@
+name: CI
+
+# Tests every pull request, and a push to main only when it is not a tree a pull request's run already passed for: this repository uses its own verified-tree.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # By hand, to test main in full whatever verified-tree would say.
+  workflow_dispatch:
+
+# verified-tree reads the pull request a commit came from and the runs of this workflow.
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # One job, so the gate verified-tree looks for is this job: on a pull request every step runs, and on a verified push the steps after the first two are skipped.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Every commit, for the changes step's merge base.
+          fetch-depth: 0
+      - id: tree
+        uses: ./verified-tree
+        with:
+          workflow: ci.yml
+          gate: test
+      # The actions run on the runner's Node 24; node-install's script runs on the job's Node, which is 22 in the repositories that use it. So the tests run on both.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: ${{ steps.tree.outputs.verified != 'true' }}
+        with:
+          node-version: 22
+      - name: Tests on Node 22
+        if: ${{ steps.tree.outputs.verified != 'true' }}
+        run: node --test
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: ${{ steps.tree.outputs.verified != 'true' }}
+        with:
+          node-version: 24
+      - name: Tests on Node 24
+        if: ${{ steps.tree.outputs.verified != 'true' }}
+        run: node --test
+      # Each action once as a workflow uses it, which the tests cannot do: its action.yml, its inputs and its outputs.
+      - id: changes
+        if: ${{ steps.tree.outputs.verified != 'true' }}
+        uses: ./changes
+        with:
+          config: .github/fixtures/changes.json
+          base: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+      - name: The changes step set its outputs
+        if: ${{ steps.tree.outputs.verified != 'true' }}
+        env:
+          LISTED: ${{ steps.changes.outputs.listed }}
+          DOCS_ONLY: ${{ steps.changes.outputs.docs_only }}
+          ACTIONS: ${{ steps.changes.outputs.actions }}
+          FILES: ${{ steps.changes.outputs.files-path }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          echo "listed=$LISTED docs_only=$DOCS_ONLY actions=$ACTIONS"
+          test "$LISTED" = "$([ "$EVENT" = pull_request ] && echo true || echo false)"
+          test "$DOCS_ONLY" = true -o "$DOCS_ONLY" = false
+          test "$ACTIONS" = true -o "$ACTIONS" = false
+          test -f "$FILES"
+      - if: ${{ steps.tree.outputs.verified != 'true' }}
+        uses: ./migration-numbers
+        with:
+          directory: .github/fixtures/migrations
+          contiguous: true
+      - if: ${{ steps.tree.outputs.verified != 'true' }}
+        uses: ./node-install
+      - if: ${{ steps.tree.outputs.verified != 'true' }}
+        uses: ./node-install/warm-workerd

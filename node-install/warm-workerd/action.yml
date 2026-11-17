@@ -1,0 +1,14 @@
+name: Warm workerd
+description: >-
+  Reads workerd's binary in node_modules through once and says how long that took, so a test that starts it right after does
+  not read it cold from a slow disk. Use it as the step just before those tests, in a job whose node_modules was linked.
+inputs:
+  working-directory:
+    description: The folder that holds node_modules.
+    default: .
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: node "$GITHUB_ACTION_PATH/../install.mjs" --warm-workerd

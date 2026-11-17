@@ -1,0 +1,30 @@
+name: Changes
+description: >-
+  Lists the files a change touches and answers the repository's own yes-or-no questions about them (documentation only?
+  anything Storybook reads?), so a workflow starts only the jobs the change needs. Needs the repository checked out.
+inputs:
+  config:
+    description: >-
+      The path of the JSON file with the questions, such as .github/changes.json. Each entry of its "outputs" object becomes an
+      output of this step, true or false. With none, the step only lists the files.
+    default: ''
+  base:
+    description: >-
+      The ref to compare with, such as origin/main: the files changed since the merge base with it. Needs a checkout with history
+      (fetch-depth 0). Leave it out on a push.
+    default: ''
+  first-parent:
+    description: >-
+      true to compare a pull request's merge commit with its first parent instead, which needs only fetch-depth 2. Ignored when
+      base is given.
+    default: 'false'
+outputs:
+  listed:
+    description: true when the change could be listed; false when nothing said what to compare with or git could not say.
+  count:
+    description: How many files the change lists.
+  files-path:
+    description: The path of a file with the changed files, one a line, for a later step with questions of its own.
+runs:
+  using: node24
+  main: main.mjs

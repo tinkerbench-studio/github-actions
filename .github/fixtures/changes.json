@@ -1,0 +1,6 @@
+{
+  "outputs": {
+    "docs_only": { "every": ["*.md"] },
+    "actions": { "any": ["action.yml", "*.mjs"], "except": ["*.test.mjs"] }
+  }
+}

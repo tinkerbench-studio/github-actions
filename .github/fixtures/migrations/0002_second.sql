@@ -1,0 +1,1 @@
+-- A fixture for this repository's own CI.

@@ -1,0 +1,51 @@
+name: Node install
+description: >-
+  Installs node_modules for a job with `npm ci`, or, on a self-hosted runner that keeps a prepared tree for this lockfile and
+  Node version, by hard-linking it, which writes no file contents. Needs the repository checked out. Sets Node up first when
+  told which version.
+inputs:
+  node-version:
+    description: The Node version to set up first. Leave it and node-version-file out when the job has set Node up already.
+    default: ''
+  node-version-file:
+    description: A file naming the Node version to set up first, such as .node-version.
+    default: ''
+  store:
+    description: >-
+      use to link from, and add to, the runner's store of prepared trees; never to always run npm ci. Any job on a shared runner
+      can write the store, so say use only for runs nothing trusts (a pull request's). A push to protected-ref never uses it,
+      whatever this says.
+    default: never
+  protected-ref:
+    description: The ref whose pushes never use the store, and which tidies it.
+    default: refs/heads/main
+  cache-dir:
+    description: The folder on a self-hosted runner that carries over from one job to the next. The store is its node_modules folder.
+    default: /ci/cache
+  npm-version:
+    description: An npm version to run ci with, through npx, for a tree the runner's own npm cannot install. The npm on the PATH when left out.
+    default: ''
+  node-auth-token:
+    description: A token for a private registry, handed to npm as NODE_AUTH_TOKEN. Left out, npm sees whatever the job's environment has.
+    default: ''
+  working-directory:
+    description: The folder with package.json and package-lock.json.
+    default: .
+runs:
+  using: composite
+  steps:
+    - if: ${{ inputs.node-version != '' || inputs.node-version-file != '' }}
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: ${{ inputs.node-version }}
+        node-version-file: ${{ inputs.node-version-file }}
+    - shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      # The inputs go through the environment, never into the command line.
+      env:
+        NODE_INSTALL_STORE: ${{ inputs.store }}
+        NODE_INSTALL_PROTECTED_REF: ${{ inputs.protected-ref }}
+        NODE_INSTALL_CACHE: ${{ inputs.cache-dir }}
+        NODE_INSTALL_NPM_VERSION: ${{ inputs.npm-version }}
+        NODE_INSTALL_AUTH_TOKEN: ${{ inputs.node-auth-token }}
+      run: node "$GITHUB_ACTION_PATH/install.mjs"

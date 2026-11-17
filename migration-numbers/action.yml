@@ -1,0 +1,32 @@
+name: Migration numbers
+description: >-
+  Checks that a folder of D1 migrations is numbered once each, so two pull requests that each took the next free number
+  cannot both merge. Needs the repository checked out.
+inputs:
+  directory:
+    description: The migrations folder, from the repository's root.
+    default: migrations
+  contiguous:
+    description: true to also require the numbers to run from 0001 with no gaps.
+    default: 'false'
+  shared:
+    description: >-
+      JSON naming the numbers two files may share, for a clash that already ran everywhere and cannot be renamed:
+      {"0026": ["0026_a.sql", "0026_b.sql"]}. Exactly those files may hold that number.
+    default: ''
+  against:
+    description: >-
+      A ref, such as origin/main, whose migrations gained since base are added to the checkout's: a pull request's run then sees
+      what merged after its merge commit was made. Given with base.
+    default: ''
+  base:
+    description: The ref against is measured from, such as HEAD^1 (the merge commit's first parent).
+    default: ''
+  pull-request-files:
+    description: >-
+      The path of a JSON file with a pull request's files as GitHub's API lists them. Their migration changes are applied to the
+      checkout, which is then the latest base branch.
+    default: ''
+runs:
+  using: node24
+  main: main.mjs

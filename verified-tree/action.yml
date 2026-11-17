@@ -1,0 +1,36 @@
+name: Verified tree
+description: >-
+  Says whether the commit a push put on a branch holds exactly the files a pull request's CI already passed for,
+  so the push's run can skip testing them again. Reads GitHub's API only: no checkout and no install.
+inputs:
+  workflow:
+    description: The file name of the workflow whose runs are the evidence, such as ci.yml. Usually the workflow this step is in.
+    required: true
+  gate:
+    description: The name of the job in that workflow that must have succeeded for the pull request, such as qa. A skipped gate is not a pass.
+    required: true
+  token:
+    description: A token that can read the repository's contents, pull requests and Actions runs.
+    default: ${{ github.token }}
+  sha:
+    description: The commit to ask about. The run's own commit when left out.
+    default: ''
+  depth:
+    description: >-
+      How many commits further back the same evidence may stand in for a push run that has not finished yet
+      (two merges close together). 0 trusts only a finished run.
+    default: '5'
+outputs:
+  verified:
+    description: true when the tree was already tested and passed; false otherwise, and whenever anything could not be read.
+  reason:
+    description: One line saying why.
+  pull-request:
+    description: The number of the pull request whose run is the evidence, when verified.
+  tested-sha:
+    description: That pull request's head commit, when verified.
+  run-id:
+    description: The run that passed for it, when verified.
+runs:
+  using: node24
+  main: main.mjs
