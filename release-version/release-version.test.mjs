@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 
 import { expect } from '../lib/expect.mjs'
-import { decide, disagreement, versionOf } from './release-version.mjs'
+import { decide, disagreement, earlierVersion, versionOf } from './release-version.mjs'
 
 describe('versionOf', () => {
   it('is the trimmed version of a manifest', () => {
@@ -15,6 +15,18 @@ describe('versionOf', () => {
     expect(() => versionOf('{"version":" "}', 'a.json')).toThrow('a.json has no version.')
     expect(() => versionOf('{"version":3}', 'a.json')).toThrow('a.json has no version.')
     expect(() => versionOf('null', 'a.json')).toThrow('a.json has no version.')
+  })
+})
+
+describe('earlierVersion', () => {
+  it('is the version a manifest had at the earlier commit', () => {
+    expect(earlierVersion('{"version":"1.0.0"}')).toBe('1.0.0')
+  })
+
+  it('is undefined, not an error, when the manifest then was not JSON or had no version, so the tag decides', () => {
+    expect(earlierVersion('{"name":"x"}')).toBe(undefined)
+    expect(earlierVersion('not json')).toBe(undefined)
+    expect(earlierVersion('')).toBe(undefined)
   })
 })
 

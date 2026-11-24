@@ -10,7 +10,7 @@ inputs:
     default: package.json
   before:
     description: >-
-      The commit before the push: the workflow's github.event.before. Left out, or all zeros, or a commit the checkout does not hold: the tag alone decides.
+      The commit before the push: the workflow's github.event.before. Left out, or all zeros, or a commit the checkout does not hold, or a manifest that had no version there: the tag alone decides.
     default: ''
   tag-prefix:
     description: What a tag puts before the version.

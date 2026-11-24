@@ -94,3 +94,33 @@ jobs:
         uses: ./node-install
       - if: ${{ steps.tree.outputs.verified != 'true' }}
         uses: ./node-install/warm-workerd
+
+  # A push to main that raises the version in package.json tags it v<version> and cuts a GitHub release with generated notes. This repository
+  # uses its own release-version to decide. Consumers pin a commit, so nothing is published: the tag and the release are for reading, and for the
+  # version comment on a pin. A tag made with GITHUB_TOKEN starts no workflow, which nothing here needs.
+  release:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # One release at a time, each on the latest main.
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - id: version
+        uses: ./release-version
+        with:
+          files: package.json
+          before: ${{ github.event.before }}
+      - name: Tag and release
+        if: steps.version.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes

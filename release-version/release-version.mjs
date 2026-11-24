@@ -16,6 +16,18 @@ export const versionOf = (text, name) => {
   return version.trim()
 }
 
+/**
+ * The version in a manifest as it stood at the commit before the push, or undefined when there was none to read there: the text is not JSON or has no version
+ * (the repository had not given the file one yet). Then there is no earlier version to compare with, and the tag decides.
+ */
+export const earlierVersion = text => {
+  try {
+    return versionOf(text, 'the earlier manifest')
+  } catch {
+    return undefined
+  }
+}
+
 /** A sentence naming the files whose versions differ, or null when they all agree (or there are none). `versions` maps a file to its version. */
 export const disagreement = versions => {
   const entries = Object.entries(versions)
