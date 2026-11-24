@@ -1,0 +1,29 @@
+name: Release version
+description: >-
+  Says whether a push to a branch raised a package's version and no tag names it yet, so a workflow can tag, release and publish it. Decides only: it
+  tags and publishes nothing. Needs the repository checked out, with the commit before the push if the version is to be compared with it (fetch-depth: 0 or 2).
+inputs:
+  files:
+    description: >-
+      The JSON manifests whose `version` must agree, one a line or comma-separated, from the repository's root. The first is the one compared with the
+      commit before the push. The step fails when they disagree.
+    default: package.json
+  before:
+    description: >-
+      The commit before the push, ${{ github.event.before }}. Left out, or all zeros, or a commit the checkout does not hold: the tag alone decides.
+    default: ''
+  tag-prefix:
+    description: What a tag puts before the version.
+    default: v
+outputs:
+  release:
+    description: true when the version should be tagged and released, false otherwise.
+  version:
+    description: The version in the files.
+  tag:
+    description: The tag the version would be released as.
+  reason:
+    description: One line saying why release is true or false.
+runs:
+  using: node24
+  main: main.mjs
