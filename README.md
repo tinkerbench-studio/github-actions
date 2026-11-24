@@ -185,7 +185,7 @@ jobs:
 | Input | For |
 | --- | --- |
 | `files` | The JSON manifests whose `version` must agree, one a line or comma-separated; `package.json` when left out. The first is compared with the commit before the push. The step fails when they disagree |
-| `before` | The commit before the push, `${{ github.event.before }}`. Left out, all zeros, or a commit the checkout does not hold: the tag alone decides |
+| `before` | The commit before the push, `${{ github.event.before }}`. Left out, all zeros, a commit the checkout does not hold, or a manifest that had no version there: the tag alone decides |
 | `tag-prefix` | What a tag puts before the version; `v` when left out |
 
 | Output | Is |
@@ -197,6 +197,10 @@ jobs:
 A version is released when no tag names it and this push changed it. A push that leaves the version as it was releases nothing, so a version merged before the workflow existed is tagged by hand once. When the remote cannot be asked the answer is `false`, and the step never guesses. The checkout needs the commit before the push (`fetch-depth: 0`, or `2` for a push of one commit); without it the tag decides, which releases a version that has no tag even when this push did not change it.
 
 [`release-version.mjs`](release-version/release-version.mjs) imports nothing, so a repository's own test can run the same decision.
+
+## Releases
+
+Each release is a tag `v<version>` and a GitHub release, made when a push to `main` raises `version` in `package.json` ([`ci.yml`](.github/workflows/ci.yml), the `release` job, which uses [`release-version`](release-version/action.yml)). A pull request that changes an action raises it: the minor for a new action or input, the major for a breaking change. Nothing is published to a registry, because a workflow pins a commit, `@<commit sha> # v1.1.0`, and the tag is how a person finds which commit that is. A commit that does not raise the version is not released; run the CI workflow by hand on `main` to release a version that no push raised.
 
 ## Changing an action
 

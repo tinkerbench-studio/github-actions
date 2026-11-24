@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
 import { input, oneLine, setOutputs, summarise } from '../lib/actions.mjs'
-import { decide, disagreement, versionOf } from './release-version.mjs'
+import { decide, disagreement, earlierVersion, versionOf } from './release-version.mjs'
 
 const git = args => spawnSync('git', args, { encoding: 'utf8' })
 
@@ -20,12 +20,12 @@ try {
   const version = versions[files[0]]
   const tag = `${input('tag-prefix')}${version}`
 
-  // A new branch's "before" is all zeros and a forced push's is a commit the clone does not hold: neither can be compared with.
+  // A new branch's "before" is all zeros and a forced push's is a commit the clone does not hold: neither can be compared with. Nor can a file that had no version then.
   const sha = input('before')
   let before
   if (sha && !/^0+$/.test(sha) && git(['cat-file', '-e', `${sha}^{commit}`]).status === 0) {
     const shown = git(['show', `${sha}:${files[0]}`])
-    if (shown.status === 0) before = versionOf(shown.stdout, `${files[0]} at ${sha}`)
+    if (shown.status === 0) before = earlierVersion(shown.stdout)
   }
 
   // Exit 2 is "no such ref"; any other failure means the remote was not asked.
