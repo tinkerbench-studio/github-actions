@@ -21,7 +21,7 @@ Name the action by its folder and pin it to a commit, with the version in a comm
 - uses: tinkerbench-studio/github-actions/verified-tree@<commit sha> # v1.0.0
 ```
 
-This repository is public, so a workflow in any repository, public or private, can use these actions. It has to be: a public repository can use an action only from a public one, and the public repositories (`drawing-board`, `marketplace`, `tick-it-claude-mod`) release and test with these.
+This repository is public, so a workflow in any repository, public or private, can use these actions. It has to be: a public repository can use an action only from a public one, and some of the organisation's repositories (`drawing-board`, `marketplace`, `tick-it-claude-mod`) are public.
 
 ## verified-tree
 
