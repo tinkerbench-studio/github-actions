@@ -7,6 +7,7 @@ The GitHub Actions the tinkerbench-studio repositories share. Each began as a sc
 | [`verified-tree`](verified-tree/action.yml) | Says whether the commit a push put on main holds exactly the files a pull request's CI already passed for, so the push's run can skip testing them again | No |
 | [`changes`](changes/action.yml) | Lists the files a change touches and answers the repository's own yes-or-no questions about them, so a workflow starts only the jobs the change needs | Yes |
 | [`migration-numbers`](migration-numbers/action.yml) | Checks that a folder of D1 migrations is numbered once each | Yes |
+| [`release-version`](release-version/action.yml) | Says whether a push raised a package's version and no tag names it yet, so a workflow can tag, release and publish it | Yes |
 | [`node-install`](node-install/action.yml) | Installs `node_modules` with `npm ci`, or by hard-linking a tree a self-hosted runner already holds | Yes |
 | [`node-install/warm-workerd`](node-install/warm-workerd/action.yml) | Reads workerd's binary through before the tests that start it | Yes |
 
@@ -133,6 +134,69 @@ On a GitHub-hosted runner, and whenever `store` is not `use`, this is `npm ci`. 
 **Any job on a shared runner can write the store, so say `use` only for runs nothing trusts.** A push to `protected-ref` (main unless you name another) never links from the store or adds to it, whatever `store` says: that run is what a deploy trusts, so it installs from the lockfile. It does remove the stored trees of other lockfiles.
 
 `npm-version` runs `ci` with that npm through `npx`, for a tree the runner's own npm cannot install. `node-auth-token` reaches npm as `NODE_AUTH_TOKEN`, for a private registry. Leave `node-version` and `node-version-file` out when the job has set Node up already.
+
+## release-version
+
+Decides; the workflow does the rest. The step reads the version in each file you name, compares the first with the commit before the push, and asks the remote whether the version's tag exists. It tags and publishes nothing, because `npm publish` needs `setup-node`'s registry configuration and a tag made with `GITHUB_TOKEN` starts no workflow, so the job that releases must also publish.
+
+```yaml
+on:
+  push:
+    branches: [main]
+    tags: ['v*'] # a tag pushed by hand still runs your publish job
+
+jobs:
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@<commit sha>
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@<commit sha>
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: '@tinkerbench-studio'
+      - id: version
+        uses: tinkerbench-studio/github-actions/release-version@<commit sha>
+        with:
+          files: |
+            package.json
+            .claude-plugin/plugin.json
+          before: ${{ github.event.before }}
+      - if: steps.version.outputs.release == 'true'
+        run: gh release create "${{ steps.version.outputs.tag }}" --target "$GITHUB_SHA" --title "${{ steps.version.outputs.tag }}" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - if: steps.version.outputs.release == 'true'
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+| Input | For |
+| --- | --- |
+| `files` | The JSON manifests whose `version` must agree, one a line or comma-separated; `package.json` when left out. The first is compared with the commit before the push. The step fails when they disagree |
+| `before` | The commit before the push, `${{ github.event.before }}`. Left out, all zeros, or a commit the checkout does not hold: the tag alone decides |
+| `tag-prefix` | What a tag puts before the version; `v` when left out |
+
+| Output | Is |
+| --- | --- |
+| `release` | `true` or `false` |
+| `version`, `tag` | The version in the files, and the tag it would be released as |
+| `reason` | One line saying why |
+
+A version is released when no tag names it and this push changed it. A push that leaves the version as it was releases nothing, so a version merged before the workflow existed is tagged by hand once. When the remote cannot be asked the answer is `false`, and the step never guesses. The checkout needs the commit before the push (`fetch-depth: 0`, or `2` for a push of one commit); without it the tag decides, which releases a version that has no tag even when this push did not change it.
+
+[`release-version.mjs`](release-version/release-version.mjs) imports nothing, so a repository's own test can run the same decision.
 
 ## Changing an action
 

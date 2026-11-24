@@ -74,6 +74,22 @@ jobs:
         with:
           directory: .github/fixtures/migrations
           contiguous: true
+      - id: release
+        if: ${{ steps.tree.outputs.verified != 'true' }}
+        uses: ./release-version
+        with:
+          files: .github/fixtures/package.json
+      - name: The release-version step set its outputs
+        if: ${{ steps.tree.outputs.verified != 'true' }}
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          TAG: ${{ steps.release.outputs.tag }}
+          RELEASE: ${{ steps.release.outputs.release }}
+        run: |
+          echo "version=$VERSION tag=$TAG release=$RELEASE"
+          test "$VERSION" = 1.2.3
+          test "$TAG" = v1.2.3
+          test "$RELEASE" = true -o "$RELEASE" = false
       - if: ${{ steps.tree.outputs.verified != 'true' }}
         uses: ./node-install
       - if: ${{ steps.tree.outputs.verified != 'true' }}
