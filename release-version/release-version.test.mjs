@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 
 import { expect } from '../lib/expect.mjs'
@@ -52,5 +53,11 @@ describe('decide', () => {
   it('releases nothing when the remote could not be asked, whatever else is known', () => {
     expect(decide({ version: '1.1.0', before: '1.0.0', tagExists: undefined, tag })).toMatchObject({ release: false, reason: 'Could not tell whether v1.1.0 exists, so nothing is released.' })
     expect(decide({ version: '1.1.0', before: undefined, tagExists: undefined, tag }).release).toBe(false)
+  })
+})
+
+describe('action.yml', () => {
+  it('holds no ${{ }} expression: the runner evaluates one in a description, where github.* is not available, and refuses to load the action', () => {
+    expect(readFileSync(new URL('./action.yml', import.meta.url), 'utf8')).not.toContain('${{')
   })
 })
