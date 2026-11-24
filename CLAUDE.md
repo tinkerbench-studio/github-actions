@@ -16,3 +16,4 @@ The actions the tinkerbench-studio repositories share (README.md says what each 
 - **An action that decides whether work is skipped answers no when it cannot tell**, and says why in one line. `verified-tree` and `changes` never guess.
 - **Actions used inside an action are pinned to a commit**, with the version in a comment.
 - **A changed input, output or default is a breaking change for every repository that pins the action**: update README.md and the `action.yml` descriptions in the same change, and say so in the pull request.
+- **This repository is public, and so is its history.** Nothing here names a secret, a token, an account id, a private repository's path or a ticket in one, or a host only the organisation uses. A workflow in this repository runs on GitHub-hosted runners (`ubuntu-latest`), never a self-hosted one, since a pull request from a fork can start it.
