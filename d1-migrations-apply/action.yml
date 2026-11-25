@@ -1,0 +1,29 @@
+name: D1 migrations apply
+description: >-
+  Applies a D1 database's pending migrations with `wrangler d1 migrations apply`, and when D1 refuses them for load (Cloudflare code 7429)
+  waits and applies again. Each migration wrangler finishes is recorded, so an attempt after a failure starts at the first one not yet applied.
+  Needs the repository checked out and wrangler installed, and Cloudflare's credentials in the step's environment.
+inputs:
+  database:
+    description: The D1 database's name, or its binding in the config, as `wrangler d1 migrations apply` takes it.
+    required: true
+  config:
+    description: The wrangler config file, from the working directory. Left out, wrangler finds its own.
+    default: ''
+  remote:
+    description: true to apply to the deployed database, false for wrangler's local one.
+    default: 'true'
+  working-directory:
+    description: The folder wrangler runs in, from the repository's root.
+    default: '.'
+  waits:
+    description: >-
+      Seconds to wait before each further attempt, separated by commas: "15,30,60,120" is five attempts in all, about four minutes of waiting. 0 for no wait,
+      empty for no retry.
+    default: '15,30,60,120'
+outputs:
+  attempts:
+    description: How many times wrangler was run, including the one that worked.
+runs:
+  using: node24
+  main: main.mjs

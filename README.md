@@ -7,6 +7,7 @@ The GitHub Actions the tinkerbench-studio repositories share. Each began as a sc
 | [`verified-tree`](verified-tree/action.yml) | Says whether the commit a push put on main holds exactly the files a pull request's CI already passed for, so the push's run can skip testing them again | No |
 | [`changes`](changes/action.yml) | Lists the files a change touches and answers the repository's own yes-or-no questions about them, so a workflow starts only the jobs the change needs | Yes |
 | [`migration-numbers`](migration-numbers/action.yml) | Checks that a folder of D1 migrations is numbered once each | Yes |
+| [`d1-migrations-apply`](d1-migrations-apply/action.yml) | Applies a D1 database's pending migrations, and waits and applies again when D1 refuses them for load (code 7429) | Yes |
 | [`release-version`](release-version/action.yml) | Says whether a push raised a package's version and no tag names it yet, so a workflow can tag, release and publish it | Yes |
 | [`node-install`](node-install/action.yml) | Installs `node_modules` with `npm ci`, or by hard-linking a tree a self-hosted runner already holds | Yes |
 | [`node-install/warm-workerd`](node-install/warm-workerd/action.yml) | Reads workerd's binary through before the tests that start it | Yes |
@@ -118,6 +119,38 @@ The globs are the ones Tick-it's merge rules use ([`lib/glob.mjs`](lib/glob.mjs)
 | `pull-request-files` | A JSON file of a pull request's files as GitHub's API lists them, applied to the checkout: for checking open pull requests against the latest main |
 
 [`migration-numbers.mjs`](migration-numbers/migration-numbers.mjs) imports nothing, so a repository's own test can run the same check.
+
+## d1-migrations-apply
+
+```yaml
+- uses: actions/checkout@<commit sha>
+- run: npm ci # wrangler has to be installed: the action runs `npx wrangler`
+- uses: tinkerbench-studio/github-actions/d1-migrations-apply@<commit sha>
+  env:
+    CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+  with:
+    database: DB
+    config: wrangler.generated.toml
+```
+
+| Input | For |
+| --- | --- |
+| `database` | The D1 database's name, or its binding in the config, as `wrangler d1 migrations apply` takes it. Letters, digits, `_`, `.` and `-`; anything else is refused |
+| `config` | The wrangler config file; wrangler finds its own when left out |
+| `remote` | `true` (the default) for the deployed database, `false` for wrangler's local one |
+| `working-directory` | The folder wrangler runs in; the repository's root when left out |
+| `waits` | Seconds to wait before each further attempt, separated by commas: `15,30,60,120` (the default) is five attempts in all. `0` for no wait, empty for no retry. Anything else is refused |
+
+The output `attempts` is how many times wrangler ran, the one that worked included.
+
+D1 refuses a run of migrations for load now and then, and answers with Cloudflare's code 7429 in one of two messages: `D1 DB exceeded its CPU time limit and was reset` (one statement was too much) and `D1 DB is overloaded. Too many resources consumed within a 10 second window` (a run of small statements was). `wrangler d1 migrations apply` records each migration it finishes, so an attempt after a failure starts at the first one not yet applied. The second message clears with time. The first fails the same way again, so it is given up on after the last wait, and the step fails with wrangler's own text. **Only code 7429 is retried**: any other failure fails the step at once.
+
+A retry runs the migration it stopped at again from its start, so a file that changes several things must be safe to run twice, or be one change per file. A migration that keeps meeting the CPU-time message is too heavy for one request and needs rewriting, not waiting for.
+
+wrangler's output is passed on as it comes. The arguments reach `npx` as an array and never through a shell, and the credentials stay in the step's environment: the action takes none as an input.
+
+[`apply.mjs`](d1-migrations-apply/apply.mjs) imports nothing, so a repository whose deploy is a script and not a workflow step can run the same logic.
 
 ## node-install
 
