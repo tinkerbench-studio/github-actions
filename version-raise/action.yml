@@ -1,0 +1,36 @@
+name: Version raise
+description: >-
+  After a merge, raises the version in every copy a repository keeps when the merge changed one of the paths you name, so a pull request never has to.
+  Edits the files only: the workflow commits, tags and releases. Needs the repository checked out with the commit before the push (fetch-depth: 0 or 2).
+inputs:
+  copies:
+    description: >-
+      The copies of the version, one a line. A path alone is a JSON manifest's top-level version. A path, whitespace and a regular expression with one
+      capture group (the version) is any other file, and the expression must match it once. Every copy must hold the same version.
+    default: package.json
+  paths:
+    description: >-
+      Globs, one a line or comma-separated, of the files whose change raises the version (lib/glob.mjs: a glob matches at any depth unless it starts with /).
+    default: '**'
+  before:
+    description: >-
+      The commit before the merge: the workflow's github.event.before. Left out, all zeros or a commit the checkout does not hold: nothing is raised.
+    default: ''
+  after:
+    description: The commit after the merge.
+    default: HEAD
+  part:
+    description: The part of the version to raise, patch, minor or major.
+    default: patch
+outputs:
+  raised:
+    description: true when the copies were raised and written, false otherwise.
+  version:
+    description: The raised version; empty when nothing was raised.
+  previous:
+    description: The version before the raise; empty when nothing was raised.
+  reason:
+    description: One line saying why the version was or was not raised.
+runs:
+  using: node24
+  main: main.mjs

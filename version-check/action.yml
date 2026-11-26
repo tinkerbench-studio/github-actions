@@ -1,0 +1,21 @@
+name: Version check
+description: >-
+  Fails a pull request that changes the version in any copy a repository keeps, for a repository whose version is raised after the merge (version-raise),
+  so two pull requests cannot take the same next version. Needs the repository checked out with its history (fetch-depth: 0).
+inputs:
+  copies:
+    description: >-
+      The copies of the version, one a line, as version-raise takes them: a path alone is a JSON manifest's top-level version; a path, whitespace and a
+      regular expression with one capture group is any other file.
+    default: package.json
+  base:
+    description: The branch the pull request goes into, as a ref the checkout holds. Left out, origin/ and the pull request's base branch, else origin/main.
+    default: ''
+outputs:
+  ok:
+    description: true when the pull request left the version as it was.
+  reason:
+    description: One line saying what the check found.
+runs:
+  using: node24
+  main: main.mjs

@@ -9,6 +9,8 @@ The GitHub Actions the tinkerbench-studio repositories share. Each began as a sc
 | [`migration-numbers`](migration-numbers/action.yml) | Checks that a folder of D1 migrations is numbered once each | Yes |
 | [`d1-migrations-apply`](d1-migrations-apply/action.yml) | Applies a D1 database's pending migrations, and waits and applies again when D1 refuses them for load (code 7429) | Yes |
 | [`release-version`](release-version/action.yml) | Says whether a push raised a package's version and no tag names it yet, so a workflow can tag, release and publish it | Yes |
+| [`version-check`](version-check/action.yml) | Fails a pull request that changes a version the repository raises after the merge, so two pull requests cannot take the same next version | Yes |
+| [`version-raise`](version-raise/action.yml) | After a merge that changed the paths you name, raises the version in every copy the repository keeps, for the workflow to commit, tag and release | Yes |
 | [`node-install`](node-install/action.yml) | Installs `node_modules` with `npm ci`, or by hard-linking a tree a self-hosted runner already holds | Yes |
 | [`node-install/warm-workerd`](node-install/warm-workerd/action.yml) | Reads workerd's binary through before the tests that start it | Yes |
 
@@ -230,6 +232,97 @@ jobs:
 A version is released when no tag names it and this push changed it. A push that leaves the version as it was releases nothing, so a version merged before the workflow existed is tagged by hand once. When the remote cannot be asked the answer is `false`, and the step never guesses. The checkout needs the commit before the push (`fetch-depth: 0`, or `2` for a push of one commit); without it the tag decides, which releases a version that has no tag even when this push did not change it.
 
 [`release-version.mjs`](release-version/release-version.mjs) imports nothing, so a repository's own test can run the same decision.
+
+## version-check and version-raise
+
+For a repository where a pull request never changes the version: `version-check` fails one that does, and after the merge `version-raise` raises it. Without them, a pull request that forgets the raise ships nothing, and two open at once can both take the same next version.
+
+A version can live in several copies that must agree: a plugin's `plugin.json` and its `package.json`, or a constant in the code that a server checks. Both actions take the same `copies` input, one a line. A path alone is a JSON manifest's top-level `version`. A path, whitespace and a regular expression is any other file: the expression must match the file once and have one capture group, the version.
+
+```yaml
+copies: |
+  .claude-plugin/plugin.json
+  hooks/state.ts MOD_VERSION = '([^']+)'
+  tests/contract-fixtures.json "modVersion": "([^"]+)"
+```
+
+`version-raise` edits the files and does nothing else: the workflow commits, tags and releases, as with `release-version`. A version kept apart from another (a package and the plugin it ships, each with its own number) is a second `version-raise` step with its own `copies` and `paths`.
+
+```yaml
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  version:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@<commit sha>
+        with:
+          fetch-depth: 0
+      - uses: tinkerbench-studio/github-actions/version-check@<commit sha>
+        with:
+          copies: |
+            package.json
+            plugin/.claude-plugin/plugin.json
+
+  release:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@<commit sha>
+        with:
+          ref: main
+          fetch-depth: 0
+      # A push made with GITHUB_TOKEN starts no workflow, but skip the raise commit anyway if this job is ever run on it.
+      - id: own
+        run: git log -1 --format=%s "$GITHUB_SHA" | grep -q '^Raise the version to ' && echo skip=true >> "$GITHUB_OUTPUT" || true
+      - id: raise
+        if: steps.own.outputs.skip != 'true'
+        uses: tinkerbench-studio/github-actions/version-raise@<commit sha>
+        with:
+          copies: package.json
+          paths: |
+            /src/**
+            /package.json
+            /package-lock.json
+          before: ${{ github.event.before }}
+      - if: steps.raise.outputs.raised == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.raise.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Raise the version to $VERSION"
+          git push origin HEAD:main
+          gh release create "v$VERSION" --target "$(git rev-parse HEAD)" --title "v$VERSION" --generate-notes
+```
+
+| Input | Of | For |
+| --- | --- | --- |
+| `copies` | both | The copies of the version, as above; `package.json` when left out. Every copy must hold the same version, or the step fails naming each |
+| `base` | `version-check` | The branch the pull request goes into, as a ref the checkout holds; `origin/` and the pull request's base branch when left out, else `origin/main` |
+| `paths` | `version-raise` | Globs, one a line or comma-separated, of the files whose change raises the version; `**` (any file) when left out. A glob matches at any depth unless it starts with `/` |
+| `before` | `version-raise` | The commit before the merge, `${{ github.event.before }}`. Left out, all zeros or a commit the checkout does not hold: nothing is raised, and the reason says why |
+| `after` | `version-raise` | The commit after the merge; `HEAD` when left out |
+| `part` | `version-raise` | `patch` (the default), `minor` or `major`. Anything else fails the step |
+
+| Output | Of | Is |
+| --- | --- | --- |
+| `ok` | `version-check` | `true` when the pull request left the version as it was. The step fails otherwise |
+| `raised` | `version-raise` | `true` when the copies were raised and written |
+| `version`, `previous` | `version-raise` | The raised version and the one before it; empty when nothing was raised |
+| `reason` | both | One line saying why |
+
+`version-check` fails when it cannot find the merge base (check out with `fetch-depth: 0`) or cannot read a copy: a check that cannot tell does not pass. A copy the base did not have, or held in a form the pattern does not match, is one the pull request adds, and passes. `version-raise` raises nothing when it cannot list the files the merge changed, and fails when a copy cannot be read, the copies disagree, or the version is not `major.minor.patch`. The logic is in [`version-copies.mjs`](lib/version-copies.mjs), [`check.mjs`](version-check/check.mjs) and [`raise.mjs`](version-raise/raise.mjs), which read nothing themselves.
 
 ## Releases
 
