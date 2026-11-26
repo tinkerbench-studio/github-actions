@@ -90,6 +90,45 @@ jobs:
           test "$VERSION" = 1.2.3
           test "$TAG" = v1.2.3
           test "$RELEASE" = true -o "$RELEASE" = false
+      - id: version-check
+        if: ${{ steps.tree.outputs.verified != 'true' }}
+        uses: ./version-check
+        with:
+          copies: |
+            .github/fixtures/version/package.json
+            .github/fixtures/version/version.ts VERSION = '([^']+)'
+      - name: The version-check step set its outputs
+        if: ${{ steps.tree.outputs.verified != 'true' }}
+        env:
+          OK: ${{ steps.version-check.outputs.ok }}
+        run: test "$OK" = true
+      # Runs last of the version steps: it rewrites the fixtures it is given. A pull request always changes a file, so it raises; a run by hand has no before, so it does not.
+      - id: version-raise
+        if: ${{ steps.tree.outputs.verified != 'true' }}
+        uses: ./version-raise
+        with:
+          copies: |
+            .github/fixtures/version/package.json
+            .github/fixtures/version/version.ts VERSION = '([^']+)'
+          before: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+      - name: The version-raise step set its outputs and wrote the copies
+        if: ${{ steps.tree.outputs.verified != 'true' }}
+        env:
+          RAISED: ${{ steps.version-raise.outputs.raised }}
+          VERSION: ${{ steps.version-raise.outputs.version }}
+          REASON: ${{ steps.version-raise.outputs.reason }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          echo "raised=$RAISED version=$VERSION: $REASON"
+          test -n "$REASON"
+          if [ "$EVENT" = pull_request ]; then
+            test "$RAISED" = true
+            test "$VERSION" = 1.2.4
+            grep -q '"version": "1.2.4"' .github/fixtures/version/package.json
+            grep -q "VERSION = '1.2.4'" .github/fixtures/version/version.ts
+          else
+            test "$RAISED" = true -o "$RAISED" = false
+          fi
       - if: ${{ steps.tree.outputs.verified != 'true' }}
         uses: ./node-install
       - if: ${{ steps.tree.outputs.verified != 'true' }}
