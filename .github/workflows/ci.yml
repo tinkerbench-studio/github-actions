@@ -103,6 +103,7 @@ jobs:
           OK: ${{ steps.version-check.outputs.ok }}
         run: test "$OK" = true
       # Runs last of the version steps: it rewrites the fixtures it is given. A pull request always changes a file, so it raises; a run by hand has no before, so it does not.
+      # The labels input is given, so the release:minor label raises the minor.
       - id: version-raise
         if: ${{ steps.tree.outputs.verified != 'true' }}
         uses: ./version-raise
@@ -111,6 +112,9 @@ jobs:
             .github/fixtures/version/package.json
             .github/fixtures/version/version.ts VERSION = '([^']+)'
           before: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          labels: |
+            ci
+            release:minor
       - name: The version-raise step set its outputs and wrote the copies
         if: ${{ steps.tree.outputs.verified != 'true' }}
         env:
@@ -123,9 +127,9 @@ jobs:
           test -n "$REASON"
           if [ "$EVENT" = pull_request ]; then
             test "$RAISED" = true
-            test "$VERSION" = 1.2.4
-            grep -q '"version": "1.2.4"' .github/fixtures/version/package.json
-            grep -q "VERSION = '1.2.4'" .github/fixtures/version/version.ts
+            test "$VERSION" = 1.3.0
+            grep -q '"version": "1.3.0"' .github/fixtures/version/package.json
+            grep -q "VERSION = '1.3.0'" .github/fixtures/version/version.ts
           else
             test "$RAISED" = true -o "$RAISED" = false
           fi

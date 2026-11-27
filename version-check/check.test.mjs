@@ -18,6 +18,18 @@ describe('check', () => {
     expect(check({ copies: copies() })).toEqual({ ok: true, reason: 'The version is 1.0.0, as on the base.' })
   })
 
+  it('passes a pull request that changed the manifest elsewhere and left its version', () => {
+    const changed = copies()
+    changed[0].head = '{ "name": "x", "description": "now with one", "version": "1.0.0" }'
+    changed[1].head = "export const OTHER = 2\nexport const VERSION = '1.0.0'\n"
+    expect(check({ copies: changed })).toEqual({ ok: true, reason: 'The version is 1.0.0, as on the base.' })
+  })
+
+  it('fails a pull request that changed one copy, naming the version on the base and the one now', () => {
+    const one = parseCopies('package.json').map(copy => ({ ...copy, base: manifest('2.3.4'), head: manifest('2.4.0') }))
+    expect(check({ copies: one })).toEqual({ ok: false, reason: 'This pull request changes the version (package.json from 2.3.4 to 2.4.0). Leave it as it was: it is raised after the merge.' })
+  })
+
   it('fails a pull request that raised the version, naming each copy it changed', () => {
     const result = check({ copies: copies({ head: ['1.1.0', '1.1.0'] }) })
     expect(result.ok).toBe(false)
