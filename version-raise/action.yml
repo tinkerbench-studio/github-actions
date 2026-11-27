@@ -20,8 +20,20 @@ inputs:
     description: The commit after the merge.
     default: HEAD
   part:
-    description: The part of the version to raise, patch, minor or major.
+    description: >-
+      The part of the version to raise, patch, minor or major. A release:minor or release:major label on the merged pull request raises that part instead
+      when it is larger.
     default: patch
+  labels:
+    description: >-
+      The merged pull request's labels, one a line or comma-separated. A release:minor or release:major label raises that part; any other label that starts
+      with release: fails the step, naming it; other labels are not read. Left out, they are read from GitHub with token, or there are none.
+    default: ''
+  token:
+    description: >-
+      A token that can read the repository's pull requests (the workflow's github.token, with pull-requests: read), to read the labels of the pull request
+      merged as after when labels is left out. Left out with labels: no label is read and part is raised. When the labels cannot be read the step fails.
+    default: ''
 outputs:
   raised:
     description: true when the copies were raised and written, false otherwise.

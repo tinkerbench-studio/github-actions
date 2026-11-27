@@ -10,7 +10,7 @@ The GitHub Actions the tinkerbench-studio repositories share. Each began as a sc
 | [`d1-migrations-apply`](d1-migrations-apply/action.yml) | Applies a D1 database's pending migrations, and waits and applies again when D1 refuses them for load (code 7429) | Yes |
 | [`release-version`](release-version/action.yml) | Says whether a push raised a package's version and no tag names it yet, so a workflow can tag, release and publish it | Yes |
 | [`version-check`](version-check/action.yml) | Fails a pull request that changes a version the repository raises after the merge, so two pull requests cannot take the same next version | Yes |
-| [`version-raise`](version-raise/action.yml) | After a merge that changed the paths you name, raises the version in every copy the repository keeps, for the workflow to commit, tag and release | Yes |
+| [`version-raise`](version-raise/action.yml) | After a merge that changed the paths you name, raises the version in every copy the repository keeps (the minor or major for a `release:minor` or `release:major` label), for the workflow to commit, tag and release | Yes |
 | [`node-install`](node-install/action.yml) | Installs `node_modules` with `npm ci`, or by hard-linking a tree a self-hosted runner already holds | Yes |
 | [`node-install/warm-workerd`](node-install/warm-workerd/action.yml) | Reads workerd's binary through before the tests that start it | Yes |
 
@@ -246,7 +246,9 @@ copies: |
   tests/contract-fixtures.json "modVersion": "([^"]+)"
 ```
 
-`version-raise` edits the files and does nothing else: the workflow commits, tags and releases, as with `release-version`. A version kept apart from another (a package and the plugin it ships, each with its own number) is a second `version-raise` step with its own `copies` and `paths`.
+`version-raise` edits the files and does nothing else: the workflow commits, tags and releases, as with `release-version`. A version kept apart from another (a package and the plugin it ships, each with its own number) is a second `version-raise` step with its own `copies` and `paths`: in the same run, each raises its own copies only when the merge touched its own paths.
+
+It raises the patch, or more when the merged pull request asks: a `release:minor` label raises the minor and `release:major` the major (the larger wins, over `part` too). Any other label that starts with `release:` fails the step, naming it, so a misspelt label cannot ship as a patch; other labels are not read. Give the labels with `labels`, or give `token` and the action reads the labels of the pull request merged as `after` (a push that came from no pull request has none). When the labels cannot be read the step fails rather than guess the part.
 
 ```yaml
 on:
@@ -276,6 +278,8 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: write
+      # For version-raise's token, to read the merged pull request's labels.
+      pull-requests: read
     steps:
       - uses: actions/checkout@<commit sha>
         with:
@@ -293,6 +297,17 @@ jobs:
             /src/**
             /package.json
             /package-lock.json
+            /plugin/**
+          before: ${{ github.event.before }}
+          # Reads the merged pull request's release:minor or release:major label.
+          token: ${{ github.token }}
+      # The plugin's own number, raised only when the merge touched the plugin.
+      - id: plugin
+        if: steps.own.outputs.skip != 'true'
+        uses: tinkerbench-studio/github-actions/version-raise@<commit sha>
+        with:
+          copies: plugin/.claude-plugin/plugin.json
+          paths: /plugin/**
           before: ${{ github.event.before }}
       - if: steps.raise.outputs.raised == 'true'
         env:
@@ -313,7 +328,9 @@ jobs:
 | `paths` | `version-raise` | Globs, one a line or comma-separated, of the files whose change raises the version; `**` (any file) when left out. A glob matches at any depth unless it starts with `/` |
 | `before` | `version-raise` | The commit before the merge, `${{ github.event.before }}`. Left out, all zeros or a commit the checkout does not hold: nothing is raised, and the reason says why |
 | `after` | `version-raise` | The commit after the merge; `HEAD` when left out |
-| `part` | `version-raise` | `patch` (the default), `minor` or `major`. Anything else fails the step |
+| `part` | `version-raise` | `patch` (the default), `minor` or `major`. Anything else fails the step. A `release:` label that asks for a larger part raises that one instead |
+| `labels` | `version-raise` | The merged pull request's labels, one a line or comma-separated. `release:minor` and `release:major` raise that part; any other `release:` label fails the step, naming it. Left out, read with `token`, or none |
+| `token` | `version-raise` | A token that can read pull requests (`${{ github.token }}` with `pull-requests: read`), to read the labels of the pull request merged as `after` when `labels` is left out. Left out with `labels`: no label is read. When the labels cannot be read the step fails |
 
 | Output | Of | Is |
 | --- | --- | --- |
@@ -322,7 +339,7 @@ jobs:
 | `version`, `previous` | `version-raise` | The raised version and the one before it; empty when nothing was raised |
 | `reason` | both | One line saying why |
 
-`version-check` fails when it cannot find the merge base (check out with `fetch-depth: 0`) or cannot read a copy: a check that cannot tell does not pass. A copy the base did not have, or held in a form the pattern does not match, is one the pull request adds, and passes. `version-raise` raises nothing when it cannot list the files the merge changed, and fails when a copy cannot be read, the copies disagree, or the version is not `major.minor.patch`. The logic is in [`version-copies.mjs`](lib/version-copies.mjs), [`check.mjs`](version-check/check.mjs) and [`raise.mjs`](version-raise/raise.mjs), which read nothing themselves.
+`version-check` fails when it cannot find the merge base (check out with `fetch-depth: 0`) or cannot read a copy: a check that cannot tell does not pass. A copy the base did not have, or held in a form the pattern does not match, is one the pull request adds, and passes. `version-raise` raises nothing when it cannot list the files the merge changed, and fails when a copy cannot be read, the copies disagree, the version is not `major.minor.patch`, a `release:` label is unknown, or the labels cannot be read. The logic is in [`version-copies.mjs`](lib/version-copies.mjs), [`check.mjs`](version-check/check.mjs) and [`raise.mjs`](version-raise/raise.mjs), which read nothing themselves.
 
 ## Releases
 
